@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Balloon Pop Game</title>
+  <style>
+    /* Dark Theme */
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #121212;
+      color: white;
+      font-family: 'Segoe UI', sans-serif;
+      text-align: center;
+    }
+
+    h1 {
+      margin-top: 30px;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    /* Balloon Base Style */
+    .balloon {
+      width: 150px;
+      height: 180px;
+      border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+      background: radial-gradient(circle at 50% 60%, #ff7e5f, #feb47b);
+      position: relative;
+      top: 50%;
+      transform: translateY(-50%);
+      margin: 0 auto;
+      cursor: pointer;
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.4);
+      transition: transform 0.3s ease-in-out;
+    }
+
+    .balloon.dynamic {
+      transition: transform 1s ease-in-out;
+    }
+
+    @keyframes bounce {
+      0%, 100% { transform: translateY(-50%) scale(1); }
+      50% { transform: translateY(-60%) scale(1.05); }
+    }
+
+    .balloon:not(.dynamic) {
+      animation: bounce 2s infinite;
+    }
+
+    #price-info {
+      margin-top: 20px;
+      font-size: 1.2em;
+      opacity: 0.8;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Hold to Pop Screen -->
+  <div id="hold-screen">
+    <h1>Click and Hold the Balloon Until It Pops!</h1>
+    <div id="balloon" class="balloon"></div>
+  </div>
+
+  <!-- Main Page -->
+  <div id="main-page" class="hidden">
+    <h1>Welcome!</h1>
+    <p>This balloon reacts to Bitcoin's Market Cap</p>
+    <div id="dynamic-balloon" class="balloon dynamic"></div>
+    <p id="price-info">Loading Bitcoin data...</p>
+  </div>
+
+  <script>
+    const balloon = document.getElementById("balloon");
+    const holdScreen = document.getElementById("hold-screen");
+    const mainPage = document.getElementById("main-page");
+    const dynamicBalloon = document.getElementById("dynamic-balloon");
+    const priceInfo = document.getElementById("price-info");
+
+    let inflation = 1;
+    let inflationInterval;
+
+    // Hold to inflate balloon
+    balloon.addEventListener("mousedown", () => {
+      inflation = 1;
+      balloon.style.transform = `translateY(-50%) scale(${inflation})`;
+
+      inflationInterval = setInterval(() => {
+        if (inflation >= 1.5) {
+          clearInterval(inflationInterval);
+          popBalloon();
+        } else {
+          inflation += 0.02;
+          balloon.style.transform = `translateY(-50%) scale(${inflation})`;
+        }
+      }, 50);
+    });
+
+    balloon.addEventListener("mouseup", () => {
+      clearInterval(inflationInterval);
+      resetBalloon();
+    });
+
+    balloon.addEventListener("mouseleave", () => {
+      clearInterval(inflationInterval);
+      resetBalloon();
+    });
+
+    function resetBalloon() {
+      balloon.style.transition = "transform 0.3s";
+      balloon.style.transform = "translateY(-50%) scale(1)";
+      setTimeout(() => {
+        balloon.style.transition = "";
+      }, 300);
+    }
+
+    function popBalloon() {
+      balloon.style.transition = "transform 0.5s";
+      balloon.style.transform = "translateY(-50%) scale(0)";
+      setTimeout(() => {
+        holdScreen.classList.add("hidden");
+        mainPage.classList.remove("hidden");
+        fetchBitcoinData();
+        startLiveUpdate();
+      }, 500);
+    }
+
+    async function fetchBitcoinData() {
+      try {
+        const res = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_market_cap=true");
+        const data = await res.json();
+        const marketCap = data.bitcoin.usd_market_cap;
+        updateBalloonSize(marketCap);
+        priceInfo.innerText = `Bitcoin Market Cap: $${(marketCap / 1e9).toFixed(2)} Billion USD`;
+        return marketCap;
+      } catch (err) {
+        console.error("Error fetching Bitcoin data:", err);
+        priceInfo.innerText = "Failed to load Bitcoin data.";
+        return null;
+      }
+    }
+
+    function updateBalloonSize(marketCap) {
+      // Normalize size between $300B and $1.5T
+      const minCap = 300_000_000_000;
+      const maxCap = 1_500_000_000_000;
+      const clampedCap = Math.max(minCap, Math.min(maxCap, marketCap));
+
+      const scale = 0.5 + ((clampedCap - minCap) / (maxCap - minCap)) * 1.0;
+      dynamicBalloon.style.transform = `translateY(-50%) scale(${scale})`;
+    }
+
+    function startLiveUpdate() {
+      fetchBitcoinData();
+      setInterval(fetchBitcoinData, 30000); // Update every 30 seconds
+    }
+  </script>
+</body>
+</html>
